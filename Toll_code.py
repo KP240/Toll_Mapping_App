@@ -11,7 +11,7 @@ from datetime import datetime
 current_year = datetime.now().year
 
 # Generate year options dynamically (current year + next 5 years)
-year_options = list(range(current_year, current_year + 5))
+year_options = list(range(current_year - 3, current_year + 5))
 
 def get_engine(db_name):
     """Create a SQLAlchemy engine while handling special characters in passwords."""
