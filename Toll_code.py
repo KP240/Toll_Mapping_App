@@ -8,7 +8,7 @@ from datetime import datetime
 
 
 # Get the current year dynamically
-current_year = datetime.datetime.now().year
+current_year = datetime.now().year
 
 # Generate year options dynamically (current year + next 5 years)
 year_options = list(range(current_year, current_year + 5))
