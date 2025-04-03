@@ -5,6 +5,14 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import URL
 from datetime import datetime
 
+
+
+# Get the current year dynamically
+current_year = datetime.datetime.now().year
+
+# Generate year options dynamically (current year + next 5 years)
+year_options = list(range(current_year, current_year + 5))
+
 def get_engine(db_name):
     """Create a SQLAlchemy engine while handling special characters in passwords."""
     DB_CREDENTIALS = {
@@ -131,7 +139,7 @@ def process_file(uploaded_file, selected_year, selected_month):
 st.title("🚗 Toll Data Mapping App")
 st.markdown("Upload an Excel file with **Licence Plate No** and **Transaction Date Time** to map vehicle site names.")
 
-selected_year = st.selectbox("Select Year", options=[2024, 2025, 2026], index=0)
+selected_year = st.selectbox("Select Year", options=year_options, index=0)
 selected_month = st.selectbox("Select Month", options=list(range(1, 13)), format_func=lambda x: datetime(2024, x, 1).strftime('%B'))
 
 uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], help="Ensure the file contains required columns.")
