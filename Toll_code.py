@@ -1,9 +1,9 @@
 import streamlit as st
 import pandas as pd
 import io
-import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import URL
+from datetime import datetime
 
 def get_engine(db_name):
     """Create a SQLAlchemy engine while handling special characters in passwords."""
@@ -29,21 +29,17 @@ def get_engine(db_name):
         st.error(f"Database {db_name} not found in credentials.")
         return None
     
-    try:
-        url = URL.create(
-            drivername="postgresql",
-            username=creds["username"],
-            password=creds["password"],
-            host=creds["host"],
-            port=creds["port"],
-            database=creds["database"]
-        )
-        return create_engine(url)
-    except Exception as e:
-        st.error(f"Failed to connect to {db_name}: {e}")
-        return None
+    url = URL.create(
+        drivername="postgresql",
+        username=creds["username"],
+        password=creds["password"],
+        host=creds["host"],
+        port=creds["port"],
+        database=creds["database"]
+    )
+    return create_engine(url)
 
-def process_file(uploaded_file):
+def process_file(uploaded_file, selected_year, selected_month):
     df_excel = pd.read_excel(uploaded_file, engine='openpyxl')
     
     required_columns = ["Licence Plate No", "Transaction Date Time"]
@@ -55,22 +51,27 @@ def process_file(uploaded_file):
     df_excel["transaction_datetime"] = pd.to_datetime(df_excel["transaction_datetime"], errors="coerce")
     df_excel["transaction_date"] = df_excel["transaction_datetime"].dt.date  
     
+    start_date = f"{selected_year}-{selected_month:02d}-01"
+    end_date = f"{selected_year}-{selected_month:02d}-31"
+    
     engine_trips = get_engine("trips")
     if engine_trips:
         try:
             with engine_trips.connect() as conn:
-                df_trips = pd.read_sql(text("""
+                df_trips = pd.read_sql(text(f"""
                     SELECT vehicle_reg_no, client_office AS site_name, 
                            actual_start_time AS leave_time, 
                            actual_end_time AS reach_time 
                     FROM etms_trips
+                    WHERE trip_date BETWEEN '{start_date}' AND '{end_date}'
                 """), conn)
 
-                df_spot_trips = pd.read_sql(text("""
+                df_spot_trips = pd.read_sql(text(f"""
                     SELECT vehicle_reg_no, site_name, 
                            leave_lithium_hub_time AS leave_time, 
                            reach_lithium_hub_time AS reach_time 
                     FROM etms_spot_trips
+                    WHERE trip_date BETWEEN '{start_date}' AND '{end_date}'
                 """), conn)
         
             df_trips_combined = pd.concat([df_trips, df_spot_trips], ignore_index=True)
@@ -93,10 +94,11 @@ def process_file(uploaded_file):
     if engine_uber:
         try:
             with engine_uber.connect() as conn:
-                df_uber = pd.read_sql(text("""
+                df_uber = pd.read_sql(text(f"""
                     SELECT vehicle_number AS vehicle_reg_no, 
                            CAST(trip_request_time AS DATE) AS transaction_date 
                     FROM seven_trip_report
+                    WHERE trip_request_time BETWEEN '{start_date}' AND '{end_date}'
                 """), conn)
         except Exception as e:
             st.error(f"Error fetching Uber data: {e}")
@@ -129,11 +131,14 @@ def process_file(uploaded_file):
 st.title("🚗 Toll Data Mapping App")
 st.markdown("Upload an Excel file with **Licence Plate No** and **Transaction Date Time** to map vehicle site names.")
 
+selected_year = st.selectbox("Select Year", options=[2024, 2025, 2026], index=0)
+selected_month = st.selectbox("Select Month", options=list(range(1, 13)), format_func=lambda x: datetime(2024, x, 1).strftime('%B'))
+
 uploaded_file = st.file_uploader("📂 Upload Excel File", type=["xlsx"], help="Ensure the file contains required columns.")
 
 if uploaded_file is not None:
     with st.spinner("Processing file..."):
-        output_buffer = process_file(uploaded_file)
+        output_buffer = process_file(uploaded_file, selected_year, selected_month)
         if output_buffer:
             st.success("✅ Mapping completed! Download the processed file below.")
             st.download_button(label="📥 Download Output", data=output_buffer, file_name="output_mapped.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
